@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页五子棋对战（带账号密码）</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        /* 注册/登录面板 */
+        .auth-panel { display: block; text-align: center; margin: 50px auto; max-width: 400px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .auth-panel input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .auth-panel button { width: 100%; padding: 12px; background: #2c3e50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 5px; }
+        .auth-panel button:hover { background: #34495e; }
+        .auth-tabs { display: flex; margin-bottom: 20px; }
+        .auth-tab { flex: 1; padding: 10px; background: #eee; cursor: pointer; border-radius: 5px 5px 0 0; }
+        .auth-tab.active { background: #2c3e50; color: white; }
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+        /* 游戏面板（默认隐藏） */
+        .game-panel { display: none; }
+        .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .user-menu { display: flex; gap: 10px; align-items: center; }
+        .user-menu button { padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .player-info { background: white; padding: 15px; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+        .timer { font-size: 20px; font-weight: bold; color: #e74c3c; }
+        /* 棋盘样式 */
+        .chessboard { display: grid; grid-template-columns: repeat(15, 40px); grid-template-rows: repeat(15, 40px); gap: 1px; background: #d1b784; padding: 10px; border-radius: 5px; margin: 0 auto; }
+        .chess-cell { width: 40px; height: 40px; background: #d1b784; cursor: pointer; position: relative; }
+        .chess-cell:hover { background: #c0a774; }
+        /* 棋子样式 */
+        .black { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: #000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .white { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        /* 排行榜样式 */
+        .ranking-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin-top: 20px; }
+        .ranking-panel h3 { margin-bottom: 15px; color: #2c3e50; }
+        .ranking-list { list-style: none; }
+        .ranking-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .ranking-item:first-child { color: #e74c3c; font-weight: bold; }
+        /* 弹窗样式 */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; display: none; }
+        .modal-content { background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; }
+        .modal input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .modal button { padding: 10px 20px; margin: 5px; background: #2c3e50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .modal .cancel-btn { background: #95a5a6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 注册/登录面板 -->
+        <div class="auth-panel" id="authPanel">
+            <div class="auth-tabs">
+                <div class="auth-tab active" data-tab="login">登录</div>
+                <div class="auth-tab" data-tab="register">注册</div>
+            </div>
+            
+            <!-- 登录表单 -->
+            <div class="auth-form active" id="loginForm">
+                <h2>用户登录</h2>
+                <input type="text" id="loginUsername" placeholder="请输入用户名" required>
+                <input type="password" id="loginPassword" placeholder="请输入密码" required>
+                <button id="loginBtn">登录</button>
+            </div>
+            
+            <!-- 注册表单 -->
+            <div class="auth-form" id="registerForm">
+                <h2>用户注册</h2>
+                <input type="text" id="regUsername" placeholder="请输入用户名" required>
+                <input type="password" id="regPassword" placeholder="请输入密码" required>
+                <input type="password" id="regConfirmPassword" placeholder="请确认密码" required>
+                <button id="registerBtn">注册</button>
+            </div>
+        </div>
+
+        <!-- 游戏面板 -->
+        <div class="game-panel" id="gamePanel">
+            <div class="game-header">
+                <div class="player-info">
+                    当前玩家：<span id="currentPlayer">黑方</span>（<span id="playerName"></span>）
+                </div>
+                <div class="user-menu">
+                    <span id="currentUsername"></span>
+                    <button id="changePwdBtn">修改密码</button>
+                    <button id="logoutBtn">退出登录</button>
+                </div>
+                <div class="timer">剩余时间：<span id="timeLeft">60</span>秒</div>
+            </div>
+
+            <div class="chessboard" id="chessboard"></div>
+
+            <div class="ranking-panel">
+                <h3>玩家排行榜（按胜场排序）</h3>
+                <ul class="ranking-list" id="rankingList"></ul>
+            </div>
+        </div>
+
+        <!-- 游戏结束弹窗 -->
+        <div class="modal" id="resultModal">
+            <div class="modal-content">
+                <h2 id="resultTitle">游戏结束！</h2>
+                <p id="resultDesc"></p>
+                <button id="restartBtn">再来一局</button>
+            </div>
+        </div>
+
+        <!-- 修改密码弹窗 -->
+        <div class="modal" id="changePwdModal">
+            <div class="modal-content">
+                <h2>修改密码</h2>
+                <input type="password" id="oldPassword" placeholder="请输入原密码" required>
+                <input type="password" id="newPassword" placeholder="请输入新密码" required>
+                <input type="password" id="confirmNewPassword" placeholder="请确认新密码" required>
+                <button id="submitPwdBtn">确认修改</button>
+                <button class="cancel-btn" id="cancelPwdBtn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简单MD5加密函数（用于密码存储）
+        function md5(str) {
+            // 简化版MD5实现，实际项目建议使用crypto-js库
+            let hash = 0;
+            if (str.length === 0) return hash.toString();
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // 转换为32位整数
+            }
+            return hash.toString(16);
+        }
+
+        // 全局变量
+        let currentUser = null; // 当前登录用户对象
+        let chessBoard = Array(15).fill().map(() => Array(15).fill(0)); // 0:空 1:黑 2:白
+        let currentColor = 1; // 当前落子颜色（1黑2白）
+        let timer = null; // 计时器
+        let timeLeft = 60; // 每回合时间限制（秒）
+        // 用户数据结构：{用户名: {password: 加密密码, win: 0, lose: 0}}
+        let userData = JSON.parse(localStorage.getItem('gobangUsers')) || {};
+
+        // DOM元素
+        const authPanel = document.getElementById('authPanel');
+        const gamePanel = document.getElementById('gamePanel');
+        const authTabs = document.querySelectorAll('.auth-tab');
+        const authForms = document.querySelectorAll('.auth-form');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const registerBtn = document.getElementById('registerBtn');
+        const playerName = document.getElementById('playerName');
+        const currentUsername = document.getElementById('currentUsername');
+        const currentPlayer = document.getElementById('currentPlayer');
+        const timeLeftSpan = document.getElementById('timeLeft');
+        const chessboard = document.getElementById('chessboard');
+        const rankingList = document.getElementById('rankingList');
+        const resultModal = document.getElementById('resultModal');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultDesc = document.getElementById('resultDesc');
+        const restartBtn = document.getElementById('restartBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const changePwdBtn = document.getElementById('changePwdBtn');
+        const changePwdModal = document.getElementById('changePwdModal');
+        const submitPwdBtn = document.getElementById('submitPwdBtn');
+        const cancelPwdBtn = document.getElementById('cancelPwdBtn');
+
+        // 切换登录/注册标签
+        authTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                authTabs.forEach(t => t.classList.remove('active'));
+                authForms.forEach(f => f.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}Form`).classList.add('active');
+            });
+        });
+
+        // 初始化棋盘
+        function initChessboard() {
+            chessboard.innerHTML = '';
+            chessBoard = Array(15).fill().map(() => Array(15).fill(0));
+            for (let i = 0; i < 15; i++) {
+                for (let j = 0; j < 15; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'chess-cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener('click', handleCellClick);
+                    chessboard.appendChild(cell);
+                }
+            }
+        }
+
+        // 落子逻辑
+        function handleCellClick(e) {
+            const row = parseInt(e.target.dataset.row);
+            const col = parseInt(e.target.dataset.col);
+
+            // 跳过已有棋子的位置
+            if (chessBoard[row][col] !== 0) return;
+
+            // 落子并更新棋盘
+            chessBoard[row][col] = currentColor;
+            const chess = document.createElement('div');
+            chess.className = currentColor === 1 ? 'black' : 'white';
+            e.target.appendChild(chess);
+
+            // 检查是否获胜
+            if (checkWin(row, col)) {
+                endGame(currentColor === 1 ? '黑方' : '白方');
+                return;
+            }
+
+            // 检查是否平局（棋盘满了）
+            if (checkDraw()) {
+                resultTitle.textContent = '平局！';
+                resultDesc.textContent = '棋盘已布满，无人获胜';
+                resultModal.style.display = 'flex';
+                clearInterval(timer);
+                return;
+            }
+
+            // 切换玩家
+            currentColor = currentColor === 1 ? 2 : 1;
+            currentPlayer.textContent = currentColor === 1 ? '黑方' : '白方';
+            resetTimer();
+        }
+
+        // 检查获胜（横、竖、斜向五子连线）
+        function checkWin(row, col) {
+            const color = chessBoard[row][col];
+            const directions = [
+                [0, 1],  // 横向
+                [1, 0],  // 纵向
+                [1, 1],  // 右下斜向
+                [1, -1]  // 左下斜向
+            ];
+
+            for (const [dx, dy] of directions) {
+                let count = 1; // 当前棋子计数
+                // 正向检查
+                for (let i = 1; i < 5; i++) {
+                    const r = row + dx * i;
+                    const c = col + dy * i;
+                    if (r >= 0 && r < 15 && c >= 0 && c < 15 && chessBoard[r][c] === color) {
+                        count++;
+                    } else break;
+                }
+                // 反向检查
+                for (let i = 1; i < 5; i++) {
+                    const r = row - dx * i;
+                    const c = col - dy * i;
+                    if (r >= 0 && r < 15 && c >= 0 && c < 15 && chessBoard[r][c] === color) {
+                        count++;
+                    } else break;
+                }
+                // 五子连线则获胜
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        // 检查平局
+        function checkDraw() {
+            for (let i = 0; i < 15; i++) {
+                for (let j = 0; j < 15; j++) {
+                    if (chessBoard[i][j] === 0) return false;
+                }
+            }
+            return true;
+        }
+
+        // 初始化计时器
+        function initTimer() {
+            clearInterval(timer);
+            timeLeft = 60;
+            timeLeftSpan.textContent = timeLeft;
+            timer = setInterval(() => {
+                timeLeft--;
+                timeLeftSpan.textContent = timeLeft;
+                // 超时判负
+                if (timeLeft <= 0) {
+                    const loseColor = currentColor;
+                    const winColor = loseColor === 1 ? 2 : 1;
+                    endGame(winColor === 1 ? '黑方' : '白方', '超时');
+                }
+            }, 1000);
+        }
+
+        // 重置计时器
+        function resetTimer() {
+            clearInterval(timer);
+            timeLeft = 60;
+            timeLeftSpan.textContent = timeLeft;
+            timer = setInterval(() => {
+                timeLeft--;
+                timeLeftSpan.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    const loseColor = currentColor;
+                    const winColor = loseColor === 1 ? 2 : 1;
+                    endGame(winColor === 1 ? '黑方' : '白方', '超时');
+                }
+            }, 1000);
+        }
+
+        // 游戏结束处理
+        function endGame(winner, reason = '获胜') {
+            clearInterval(timer);
+            // 更新用户战绩（假设当前用户是黑方，对手是电脑白方）
+            if (winner === '黑方') {
+                userData[currentUser.username].win++;
+                resultTitle.textContent = '恭喜获胜！';
+                resultDesc.textContent = `你以${reason}方式击败对手`;
+            } else {
+                userData[currentUser.username].lose++;
+                resultTitle.textContent = '游戏失败！';
+                resultDesc.textContent = `对手以${reason}方式击败你`;
+            }
+            // 保存用户数据到本地存储
+            localStorage.setItem('gobangUsers', JSON.stringify(userData));
+            // 更新排行榜
+            updateRanking();
+            // 显示结果弹窗
+            resultModal.style.display = 'flex';
+        }
+
+        // 更新排行榜（按胜场降序排序）
+        function updateRanking() {
+            rankingList.innerHTML = '';
+            // 转换为数组并排序
+            const sortedUsers = Object.entries(userData).sort((a, b) => b[1].win - a[1].win);
+            // 渲染排行榜
+            sortedUsers.forEach(([name, data], index) => {
+                const item = document.createElement('li');
+                item.className = 'ranking-item';
+                item.innerHTML = `
+                    <span>第${index + 1}名：${name}</span>
+                    <span>胜${data.win}场 | 负${data.lose}场</span>
+                `;
+                rankingList.appendChild(item);
+            });
+        }
+
+        // 注册逻辑
+        registerBtn.addEventListener('click', () => {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value.trim();
+            const confirmPassword = document.getElementById('regConfirmPassword').value.trim();
+
+            // 验证输入
+            if (!username || !password || !confirmPassword) {
+                alert('请填写所有字段！');
+                return;
+            }
+            if (password !== confirmPassword) {
+                alert('两次输入的密码不一致！');
+                return;
+            }
+            if (userData[username]) {
+                alert('用户名已存在！');
+                return;
+            }
+
+            // 创建用户（密码加密存储）
+            userData[username] = {
+                password: md5(password),
+                win: 0,
+                lose: 0
+            };
+            localStorage.setItem('gobangUsers', JSON.stringify(userData));
+            alert('注册成功！请登录');
+            
+            // 切换到登录标签
+            authTabs[0].click();
+        });
+
+        // 登录逻辑
+        loginBtn.addEventListener('click', () => {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+
+            // 验证输入
+            if (!username || !password) {
+                alert('请填写用户名和密码！');
+                return;
+            }
+            if (!userData[username] || userData[username].password !== md5(password)) {
+                alert('用户名或密码错误！');
+                return;
+            }
+
+            // 登录成功
+            currentUser = { username };
+            authPanel.style.display = 'none';
+            gamePanel.style.display = 'block';
+            playerName.textContent = username;
+            currentUsername.textContent = username;
+            
+            // 初始化游戏
+            initChessboard();
+            initTimer();
+            updateRanking();
+        });
+
+        // 退出登录
+        logoutBtn.addEventListener('click', () => {
+            if (confirm('确定要退出登录吗？')) {
+                currentUser = null;
+                gamePanel.style.display = 'none';
+                authPanel.style.display = 'block';
+                // 清空表单
+                document.getElementById('loginUsername').value = '';
+                document.getElementById('loginPassword').value = '';
+                clearInterval(timer);
+            }
+        });
+
+        // 打开修改密码弹窗
+        changePwdBtn.addEventListener('click', () => {
+            changePwdModal.style.display = 'flex';
+            // 清空密码输入框
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmNewPassword').value = '';
+        });
+
+        // 关闭修改密码弹窗
+        cancelPwdBtn.addEventListener('click', () => {
+            changePwdModal.style.display = 'none';
+        });
+
+        // 修改密码逻辑
+        submitPwdBtn.addEventListener('click', () => {
+            const oldPassword = document.getElementById('oldPassword').value.trim();
+            const newPassword = document.getElementById('newPassword').value.trim();
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value.trim();
+
+            // 验证输入
+            if (!oldPassword || !newPassword || !confirmNewPassword) {
+                alert('请填写所有字段！');
+                return;
+            }
+            if (userData[currentUser.username].password !== md5(oldPassword)) {
+                alert('原密码错误！');
+                return;
+            }
+            if (newPassword !== confirmNewPassword) {
+                alert('两次输入的新密码不一致！');
+                return;
+            }
+            if (oldPassword === newPassword) {
+                alert('新密码不能与原密码相同！');
+                return;
+            }
+
+            // 更新密码
+            userData[currentUser.username].password = md5(newPassword);
+            localStorage.setItem('gobangUsers', JSON.stringify(userData));
+            alert('密码修改成功！');
+            changePwdModal.style.display = 'none';
+        });
+
+        // 重新开始游戏
+        restartBtn.addEventListener('click', () => {
+            resultModal.style.display = 'none';
+            initChessboard();
+            currentColor = 1;
+            currentPlayer.textContent = '黑方';
+            initTimer();
+        });
+
+        // 页面加载时初始化排行榜（如果有用户数据）
+        window.addEventListener('load', () => {
+            if (Object.keys(userData).length > 0) {
+                updateRanking();
+            }
+        });
+    </script>
+</body>
+</html>
